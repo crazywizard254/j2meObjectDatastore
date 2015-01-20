@@ -4,10 +4,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Vector;
+import javax.microedition.rms.InvalidRecordIDException;
 import javax.microedition.rms.RecordEnumeration;
 import javax.microedition.rms.RecordStore;
 import javax.microedition.rms.RecordStoreException;
@@ -141,7 +141,57 @@ public class RecordsReader {
         //Reset type
         type = -1;
         
+        
     }//--End of saveRecord()
+    
+    public void saveRecord(int id, Hashtable attr, byte[] data) throws IOException{
+        openRecStore(flag);
+        
+        //Write data into internal byte array
+        ByteArrayOutputStream strmBytes = new ByteArrayOutputStream();
+        //Write Java data types into the above byte array
+        DataOutputStream strmDataType = new DataOutputStream(strmBytes);
+        
+        byte[] record;
+        
+        //check if type isset
+        if(type == -1){
+            type = 9;   //default setting
+        }
+        
+        /* Decompose hashtable to key/value string pairs */
+        String attr_str = "";
+        if(attr != null){
+            Enumeration keys = attr.keys();
+            while(keys.hasMoreElements()){
+                String key = (String) keys.nextElement();
+                String value = attr.get(key).toString();
+                attr_str += "|"+key+":"+value;
+            }
+            attr_str = attr_str.substring(1);
+        }
+        
+        //Write Java data types
+        strmDataType.writeInt(type);
+        strmDataType.writeUTF(attr_str.toString());
+        strmDataType.write(data);
+        
+        //Cleared any buffered data
+        strmDataType.flush();
+        
+        //Get stream data into byte array and write into record
+        record = strmBytes.toByteArray();
+        int index;
+        try {
+            rs.setRecord(id, record, 0, record.length);
+        } catch (InvalidRecordIDException ex) {
+            ex.printStackTrace();
+        } catch (RecordStoreException ex) {
+            ex.printStackTrace();
+        }
+        
+        closeRecStore();
+    }
     
     public void saveRecord(Hashtable attr, int data) throws IOException{
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -163,8 +213,41 @@ public class RecordsReader {
         saveRecord(attr, bos.toByteArray());
     }//--End of saveRecord(Hashtable, String)
     
+    public void updateRecord(int id, Hashtable attr, int data) throws IOException{
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        dos.writeInt(data);
+        dos.flush();
+        
+        type = INT;
+        
+        /* First read contents of record */
+        Hashtable result = readRecord(id);
+        
+        //Check for attributes
+        if(result.containsKey("attr")){
+            Hashtable attribs = (Hashtable) result.get("attr");
+            //(over)write new attributes
+            Enumeration attr_enum = attr.elements();
+            while(attr_enum.hasMoreElements()){
+                String key = attr_enum.nextElement().toString();
+                String value = attr.get(key).toString();
+                attribs.put(key, value);
+            }
+            //Update changes with new byte data
+            saveRecord(id, attribs, bos.toByteArray());
+        }else{
+            //Update record with new byte data
+            saveRecord(id, attr, bos.toByteArray());
+        }
+        
+        //Extract byte data
+        //saveRecord(id, at)
+        
+    }//--End of updateRecord(int, Hashtable, int)
     
-    public Vector readRecord(){
+    
+    public Vector readRecords(){
         openRecStore(flag);
                 
         try {
@@ -292,7 +375,101 @@ public class RecordsReader {
         
         closeRecStore();
         return null;
-    }//--End of readRecord()
+    }//--End of readRecords()
+    
+    public Hashtable readRecord(int id){
+        openRecStore(flag);
+        
+        try{
+            //Array to hold record
+            byte[] recData = new byte[rs.getRecordSize(id)];
+            
+            //Read from specified byte array
+            ByteArrayInputStream strmBytes = new ByteArrayInputStream(recData);
+            
+            //Read Java data types from the above byte array
+            DataInputStream strmDataType = new DataInputStream(strmBytes);
+            
+            rs.getRecord(id, recData, 0);
+            
+            //Read back the data 
+            int type = strmDataType.readInt();
+            System.out.println("TYPE: "+type);
+            
+            //Categorise results by type
+            switch(type){
+                case INT:{
+                    //Create holding hashtable
+                    Hashtable result = new Hashtable();
+                    
+                    String attr_str = strmDataType.readUTF();
+                    if(attr_str.length() > 1){
+                        //Reconstruct attrs
+                        String[] attr_array = split(attr_str, "|");
+                        Hashtable attr = new Hashtable();
+                        for(int i=0; i<attr_array.length; i++){
+                            String[] attr_parts = split(attr_array[i], ":");
+                            attr.put(attr_parts[0], attr_parts[1]);
+                        }
+                        //Add to result
+                        result.put("attr", attr);
+                    }
+                    
+                    //Extract value
+                    Integer value = new Integer(strmDataType.readInt());
+                    
+                    //Pack into singular result
+                    result.put("value", value);
+                    result.put("id", new Integer(id));
+                    
+                    closeRecStore();
+                    return result;                    
+                }case STRING:{
+                    //
+                }case BYTE:{
+                    //Create holding hashtable
+                    Hashtable result = new Hashtable();
+                    
+                    String attr_str = strmDataType.readUTF();
+                    if(attr_str.length() > 1){
+                        //Reconstruct attrs
+                        String[] attr_array = split(attr_str, "|");
+                        Hashtable attr = new Hashtable();
+                        for(int i=0; i<attr_array.length; i++){
+                            String[] attr_parts = split(attr_array[i], ":");
+                            attr.put(attr_parts[0], attr_parts[1]);
+                        }
+                        //Add to result
+                        result.put("attr", attr);
+                    }
+                    
+                    //Extract value
+                    byte[] value = new byte[strmDataType.available()];
+                    strmDataType.readFully(value);
+                    result.put("value", value);
+                    result.put("id", new Integer(id));
+                    
+                    closeRecStore();
+                    return result;
+                }
+                default:
+                    closeRecStore();
+                    return null;                    
+            }
+            
+        } catch (RecordStoreNotOpenException ex) {
+            ex.printStackTrace();
+        } catch (InvalidRecordIDException ex) {System.out.println("That record doesn't exist..");
+            ex.printStackTrace();
+        } catch (RecordStoreException ex) {
+            ex.printStackTrace();
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }     
+        closeRecStore();
+        
+        return null;
+    }//--End of readRecord(int)
     
     /* Helper Methods */
     public static int toInt(byte[] bytes){

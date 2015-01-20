@@ -38,7 +38,7 @@ public class Mine extends MIDlet {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
-        Vector results = reader.readRecord();
+        /*Vector results = reader.readRecords();
         Enumeration results_enum = results.elements();
         while(results_enum.hasMoreElements()){
             Hashtable result = (Hashtable) results_enum.nextElement();
@@ -47,7 +47,9 @@ public class Mine extends MIDlet {
             Integer id = (Integer) result.get("id");
             System.out.println("ID: "+id);
             f.append(img);
-        }
+        }*/
+        Hashtable result = reader.readRecord(1);
+        System.out.println(result);
         //reader.deleteRecStore();
         //test();
         
