@@ -26,15 +26,13 @@ public class Mine extends MIDlet {
         Form f = new Form("Object DB");
         RecordsReader reader = new RecordsReader("mine", true);
         try {
-            Hashtable attr = new Hashtable();
-            attr.put("type", "timestamp");
-            attr.put("location", "Bangalore");
-            attr.put("Org", "Kirusa");
+            Hashtable attr = new Hashtable();            
+            attr.put("developer", "crazywizard");
             //Image img = Image.createImage("/ngugi.png");
             InputStream in = getClass().getResourceAsStream("/ngugi.png");
             byte[] data = new byte[in.available()];
             in.read(data, 0, in.available());
-            //reader.saveRecord(null, data);
+            reader.updateRecord(1, attr, data, true);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -48,6 +46,7 @@ public class Mine extends MIDlet {
             System.out.println("ID: "+id);
             f.append(img);
         }*/
+        
         Hashtable result = reader.readRecord(1);
         System.out.println(result);
         //reader.deleteRecStore();

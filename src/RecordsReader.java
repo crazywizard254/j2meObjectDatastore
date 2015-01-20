@@ -213,7 +213,7 @@ public class RecordsReader {
         saveRecord(attr, bos.toByteArray());
     }//--End of saveRecord(Hashtable, String)
     
-    public void updateRecord(int id, Hashtable attr, int data) throws IOException{
+    public void updateRecord(int id, Hashtable attr, int data, boolean overwrite) throws IOException{
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         dos.writeInt(data);
@@ -225,10 +225,10 @@ public class RecordsReader {
         Hashtable result = readRecord(id);
         
         //Check for attributes
-        if(result.containsKey("attr")){
+        if(result.containsKey("attr") && overwrite==false){
             Hashtable attribs = (Hashtable) result.get("attr");
             //(over)write new attributes
-            Enumeration attr_enum = attr.elements();
+            Enumeration attr_enum = attr.keys();
             while(attr_enum.hasMoreElements()){
                 String key = attr_enum.nextElement().toString();
                 String value = attr.get(key).toString();
@@ -241,7 +241,74 @@ public class RecordsReader {
             saveRecord(id, attr, bos.toByteArray());
         }
         
-    }//--End of updateRecord(int, Hashtable, int)
+    }//--End of updateRecord(int, Hashtable, int, boolean)
+    
+    /* Overload function */
+    public void updateRecord(int id, Hashtable attr, int data) throws IOException{
+        updateRecord(id, attr, data, false);
+    }//--End of update
+    
+    public void updateRecords(int id, Hashtable attr, String data, boolean overwrite) throws IOException{
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        dos.writeUTF(data);
+        dos.flush();
+        
+        type = STRING;
+        
+        /* First read contents of record */
+        Hashtable result = new Hashtable();
+        
+        //Check for attributes
+        if(result.containsKey("attr") && overwrite==false){
+            Hashtable attribs = (Hashtable) result.get("attr");
+            //(over)write new attributes
+            Enumeration attr_enum = attr.keys();
+            while(attr_enum.hasMoreElements()){
+                String key = attr_enum.nextElement().toString();
+                String value = attr.get(key).toString();
+                attribs.put(key, value);
+            }
+            //Update changes with new byte data
+            saveRecord(id, attribs, bos.toByteArray());
+        }else{
+            //Update record with new byte data
+            saveRecord(id, attr, bos.toByteArray());
+        }
+    }//--End of updateRecords(int, Hashtable, String, boolean)
+    
+    /* Overload function */
+    public void updateRecords(int id, Hashtable attr, String data) throws IOException{
+        updateRecords(id, attr, data, false);
+    }//--End of updateRecords(int, Hashtable, String)
+    
+    public void updateRecord(int id, Hashtable attr, byte[] data, boolean overwrite) throws IOException{
+        type = INT;
+        
+        /* First read contents of record */
+        Hashtable result = readRecord(id);
+        
+        //Check for attributes 
+        if(result.containsKey("attr") && overwrite==false){
+            Hashtable attribs = (Hashtable) result.get("attr");
+            //(over)write new attributes
+            Enumeration attr_enum = attr.keys();
+            while(attr_enum.hasMoreElements()){
+                String key = attr_enum.nextElement().toString();
+                String value = attr.get(key).toString();
+                attribs.put(key, value);
+            }
+            //Update changes with new byte data
+            saveRecord(id, attribs, data);
+        }else{
+            //Update record with new byte data
+            saveRecord(id, attr, data);
+        }
+    }//--End of updateRecord(int, Hashtable, byte[], boolea)
+    
+    public void updateRecord(int id, Hashtable attr, byte[] data) throws IOException{
+        updateRecord(id, attr, data, false);
+    }//--End of updateRecord(int, Hashtable, byte[])
     
     
     public Vector readRecords(){

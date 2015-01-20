@@ -228,7 +228,7 @@ public class RecordsReader {
         if(result.containsKey("attr")){
             Hashtable attribs = (Hashtable) result.get("attr");
             //(over)write new attributes
-            Enumeration attr_enum = attr.elements();
+            Enumeration attr_enum = attr.keys();
             while(attr_enum.hasMoreElements()){
                 String key = attr_enum.nextElement().toString();
                 String value = attr.get(key).toString();
@@ -241,10 +241,35 @@ public class RecordsReader {
             saveRecord(id, attr, bos.toByteArray());
         }
         
-        //Extract byte data
-        //saveRecord(id, at)
-        
     }//--End of updateRecord(int, Hashtable, int)
+    
+    public void updateRecord(int id, Hashtable attr, byte[] data, boolean overwrite) throws IOException{
+        type = INT;
+        
+        /* First read contents of record */
+        Hashtable result = readRecord(id);
+        
+        //Check for attributes 
+        if(result.containsKey("attr") && overwrite==false){
+            Hashtable attribs = (Hashtable) result.get("attr");
+            //(over)write new attributes
+            Enumeration attr_enum = attr.keys();
+            while(attr_enum.hasMoreElements()){
+                String key = attr_enum.nextElement().toString();
+                String value = attr.get(key).toString();
+                attribs.put(key, value);
+            }
+            //Update changes with new byte data
+            saveRecord(id, attribs, data);
+        }else{
+            //Update record with new byte data
+            saveRecord(id, attr, data);
+        }
+    }//--End of updateRecord(int, Hashtable, byte[], boolea)
+    
+    public void updateRecord(int id, Hashtable attr, byte[] data) throws IOException{
+        updateRecord(id, attr, data, false);
+    }//--End of updateRecord(int, Hashtable, byte[])
     
     
     public Vector readRecords(){
