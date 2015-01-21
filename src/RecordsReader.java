@@ -460,7 +460,14 @@ public class RecordsReader {
         filter = new SearchFilter(search);
         
         return readRecords();
-    }        
+    }//--End of readRecords(Hashtable)
+    
+    public Vector readRecords(byte[] search){
+        //Create search filter
+        filter = new SearchFilter(search);
+        
+        return readRecords();
+    }
     
     public Hashtable readRecord(int id){
         openRecStore(flag);
@@ -587,7 +594,32 @@ public class RecordsReader {
                         }
                     }
                     return result;
-             }//--End of split()
+             }//--End of split(String, String)
+    
+    public static boolean equals(byte[] b1, byte[] b2){
+        /**
+        * compares the two given byte arrays for equality
+        * 
+        * @param b1 first byte array
+        * @param b2 second byte array
+        * @returns true if the arrays have the same contents, false otherwise.
+        */
+        if(b1 == null && b2 == null){
+            return true;
+        }
+        if(b1 == null || b2 == null){
+            return false;
+        }
+        if(b1.length != b2.length){
+            return false;
+        }
+        for(int i=0; i<b1.length; i++){
+            if(b1[i] != b2[i]){
+                return false;
+            }
+        }
+        return true;
+    }//--End of compare(byte[], byte[])
 }
 
 //**************************************
@@ -597,6 +629,7 @@ class SearchFilter implements RecordFilter{
     int type = -1;    
     private String searchText = null;
     private Hashtable searchHash = null;
+    private byte[] searchData = null;
     
     public SearchFilter(String searchText){
         //Text to find
@@ -608,6 +641,12 @@ class SearchFilter implements RecordFilter{
         //Attributes to search through
         this.searchHash = searchHash;
         this.type = RecordsReader.HASH;
+    }
+    
+    public SearchFilter(byte[] searchData){
+        /* Use as last resort to search equivalent byte data */
+        this.searchData = searchData;
+        this.type = RecordsReader.BYTE;
     }
 
     public boolean matches(byte[] candidate) {
@@ -647,8 +686,7 @@ class SearchFilter implements RecordFilter{
                     }
                     Enumeration search_keys = this.searchHash.keys();
                     while(search_keys.hasMoreElements()){
-                        Object key = search_keys.nextElement();
-                        //Search for key/value attr pair -- /* Note: key & value are CASE-SENSITIVE */
+                        Object key = search_keys.nextElement();     //Maintain type                        
                         if(attr.containsKey(key) && attr.contains(this.searchHash.get(key))){System.out.println("Match Found");
                             return true;
                         }
@@ -656,15 +694,35 @@ class SearchFilter implements RecordFilter{
                     
                     //No match Found
                     return false;
-                }
-                
-                break;
+                }                                
             } catch (IOException ex) {
-                ex.printStackTrace();
+                ex.printStackTrace();                
             }
-            }default:
+            break;            
+            }case RecordsReader.BYTE:{
+                /* Use as last resort to test the byte data equivalent */
+                try{
+                    //Read from specified byte array
+                    ByteArrayInputStream strmBytes = new ByteArrayInputStream(candidate);
+                    
+                    //Read Java data types from the above byte array
+                    DataInputStream strmDataType = new DataInputStream(strmBytes);
+                    
+                    //Read back the data
+                    strmDataType.readInt();
+                    strmDataType.readUTF();
+                    byte[] data = new byte[strmDataType.available()];                    
+                    strmDataType.readFully(data);
+                    
+                    return RecordsReader.equals(data, this.searchData);
+                } catch (IOException ex){
+                    ex.printStackTrace();                   
+                }
+                break;
+            }
+            default:
                 return false;                
         }
-        return false;   //Default return(not needed)
+        return false;   //Default return for unexpected exit
     }
 }

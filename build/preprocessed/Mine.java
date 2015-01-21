@@ -25,6 +25,7 @@ public class Mine extends MIDlet {
     public void startApp() {
         Form f = new Form("Object DB");
         RecordsReader reader = new RecordsReader("mine", true);
+        Vector results = null;
         try {
             Hashtable attr = new Hashtable();            
             attr.put("developer", "crazywizard");
@@ -33,13 +34,13 @@ public class Mine extends MIDlet {
             byte[] data = new byte[in.available()];
             in.read(data, 0, in.available());
             //reader.saveRecord(null, "Ngugi");
-            //reader.readRecords(attr);
+            results = reader.readRecords(data);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
         Hashtable attr = new Hashtable();
         attr.put("developer", "crazywizard");
-        Vector results = reader.readRecords(attr);
+        //results = reader.readRecords(attr);
         Enumeration results_enum = results.elements();
         while(results_enum.hasMoreElements()){
             Hashtable result = (Hashtable) results_enum.nextElement();
