@@ -9,6 +9,7 @@ import java.util.Hashtable;
 import java.util.Vector;
 import javax.microedition.rms.InvalidRecordIDException;
 import javax.microedition.rms.RecordEnumeration;
+import javax.microedition.rms.RecordFilter;
 import javax.microedition.rms.RecordStore;
 import javax.microedition.rms.RecordStoreException;
 import javax.microedition.rms.RecordStoreNotFoundException;
@@ -29,6 +30,7 @@ public class RecordsReader {
     private String REC_STORE;   // Name of record store 
     private int type = -1;
     private boolean flag = true;
+    private SearchFilter filter = null;
     
     /* Java Data Types */
     static final int INT = 0;
@@ -41,6 +43,9 @@ public class RecordsReader {
     static final int STRING = 7;
     static final int BOOLEAN = 8;
     static final int BYTE = 9;
+    
+    /* Extra types */
+    static final int HASH = 10;
     
     public RecordsReader(String rec_store){ /* Default Open Store */
         this.REC_STORE = rec_store;        
@@ -62,7 +67,7 @@ public class RecordsReader {
         }
     }//--End of openRecStore(boolean)
     
-    public void closeRecStore(){
+    public void closeRecStore(){        
         try{
             rs.closeRecordStore();
         }catch(NullPointerException ex){
@@ -315,7 +320,9 @@ public class RecordsReader {
         openRecStore(flag);
                 
         try {
-            RecordEnumeration re = rs.enumerateRecords(null, null, false);
+            RecordEnumeration re = rs.enumerateRecords(filter, null, false);
+            //Reset the filter for future use
+            filter = null;
             Vector results = new Vector();
             while(re.hasNextElement()){
                 //Get data into the byte array
@@ -337,8 +344,7 @@ public class RecordsReader {
                 
                 //Read back the data types                
                 int type = strmDataType.readInt();
-                System.out.println("Type: "+type);
-                                
+                                                
                 //Categorise results by type
                 switch(type){
                     case INT:{
@@ -441,6 +447,21 @@ public class RecordsReader {
         return null;
     }//--End of readRecords()
     
+    /* Overload function */
+    public Vector readRecords(String search){
+        //Create search filter
+        filter = new SearchFilter(search);
+        
+        return readRecords();        
+    }//--End of readRecords(String)
+    
+    public Vector readRecords(Hashtable search){
+        //Create search filter
+        filter = new SearchFilter(search);
+        
+        return readRecords();
+    }        
+    
     public Hashtable readRecord(int id){
         openRecStore(flag);
         
@@ -458,8 +479,7 @@ public class RecordsReader {
             
             //Read back the data 
             int type = strmDataType.readInt();
-            System.out.println("TYPE: "+type);
-            
+                        
             //Categorise results by type
             switch(type){
                 case INT:{
@@ -545,7 +565,7 @@ public class RecordsReader {
         return result;
     }//--End of toInt(byte[])
     
-    public String[] split(String original, String separator)
+    public static String[] split(String original, String separator)
                 {
                     Vector nodes=new Vector();
                     //Parse nodes into Vector
@@ -568,4 +588,83 @@ public class RecordsReader {
                     }
                     return result;
              }//--End of split()
+}
+
+//**************************************
+// Filter class for searching
+//**************************************
+class SearchFilter implements RecordFilter{
+    int type = -1;    
+    private String searchText = null;
+    private Hashtable searchHash = null;
+    
+    public SearchFilter(String searchText){
+        //Text to find
+        this.searchText = searchText.toLowerCase();
+        this.type = RecordsReader.STRING;
+    }
+    
+    public SearchFilter(Hashtable searchHash){
+        //Attributes to search through
+        this.searchHash = searchHash;
+        this.type = RecordsReader.HASH;
+    }
+
+    public boolean matches(byte[] candidate) {
+        /* Categorise search operation by type */
+        switch(type){
+            case RecordsReader.INT: {
+                //
+                break;
+            }case RecordsReader.STRING: {
+                String str = new String (candidate).toLowerCase();
+                //Does the text exist?
+                if(searchText != null && str.indexOf(searchText) != -1)
+                    return true;
+                else
+                    return false;                
+            }case RecordsReader.HASH:{
+            try {
+                //Read from specified byte array
+                ByteArrayInputStream strmBytes = new ByteArrayInputStream(candidate);
+                
+                //Read Java data types from the above byte array
+                DataInputStream strmDataType = new DataInputStream(strmBytes);
+                
+                //Read back the data
+                strmDataType.readInt();
+                String attr_str = strmDataType.readUTF();
+                
+                //Create holding hashtable
+                Hashtable result = new Hashtable();
+                if(attr_str.length() > 1){
+                    //Reconstruct attrs
+                    String[] attr_array = RecordsReader.split(attr_str, "|");
+                    Hashtable attr = new Hashtable();
+                    for(int i=0; i<attr_array.length; i++){
+                        String[] attr_parts = RecordsReader.split(attr_array[i], ":");
+                        attr.put(attr_parts[0], attr_parts[1]);                        
+                    }
+                    Enumeration search_keys = this.searchHash.keys();
+                    while(search_keys.hasMoreElements()){
+                        Object key = search_keys.nextElement();
+                        //Search for key/value attr pair -- /* Note: key & value are CASE-SENSITIVE */
+                        if(attr.containsKey(key) && attr.contains(this.searchHash.get(key))){System.out.println("Match Found");
+                            return true;
+                        }
+                    }
+                    
+                    //No match Found
+                    return false;
+                }
+                
+                break;
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+            }default:
+                return false;                
+        }
+        return false;   //Default return(not needed)
+    }
 }

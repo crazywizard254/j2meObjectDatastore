@@ -32,25 +32,20 @@ public class Mine extends MIDlet {
             InputStream in = getClass().getResourceAsStream("/ngugi.png");
             byte[] data = new byte[in.available()];
             in.read(data, 0, in.available());
-            reader.updateRecord(1, attr, data, true);
+            //reader.saveRecord(null, "Ngugi");
+            //reader.readRecords(attr);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
-        /*Vector results = reader.readRecords();
+        Hashtable attr = new Hashtable();
+        attr.put("developer", "crazywizard");
+        Vector results = reader.readRecords(attr);
         Enumeration results_enum = results.elements();
         while(results_enum.hasMoreElements()){
             Hashtable result = (Hashtable) results_enum.nextElement();
-            byte[] data = (byte[]) result.get("value");
-            Image img = Image.createImage(data, 0, data.length);
-            Integer id = (Integer) result.get("id");
-            System.out.println("ID: "+id);
-            f.append(img);
-        }*/
+            System.out.println(result.toString());
+        }
         
-        Hashtable result = reader.readRecord(1);
-        System.out.println(result);
-        //reader.deleteRecStore();
-        //test();
         
         Display.getDisplay(this).setCurrent(f);
     }
