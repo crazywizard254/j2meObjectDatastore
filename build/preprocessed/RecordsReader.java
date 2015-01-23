@@ -8,6 +8,7 @@ import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Vector;
 import javax.microedition.rms.InvalidRecordIDException;
+import javax.microedition.rms.RecordComparator;
 import javax.microedition.rms.RecordEnumeration;
 import javax.microedition.rms.RecordFilter;
 import javax.microedition.rms.RecordStore;
@@ -31,21 +32,27 @@ public class RecordsReader {
     private int type = -1;
     private boolean flag = true;
     private SearchFilter filter = null;
+    private Comparator comp = null;
     
-    /* Java Data Types */
-    static final int INT = 0;
-    static final int SHORT = 1;
-    static final int LONG = 2;
-    static final int FLOAT = 3;
-    static final int DOUBLE = 4;
-    static final int CHAR = 5;
-    static final int CHARS = 6;
-    static final int STRING = 7;
-    static final int BOOLEAN = 8;
-    static final int BYTE = 9;
-    
+    /* Java Data Types -- powers of 2 for bitwise operations */ 
+    static final int INT = 1;
+    static final int STRING = 2;
+    static final int BYTE = 4;
+    static final int SHORT = 8;
+    static final int LONG = 16;
+    static final int FLOAT = 32;
+    static final int DOUBLE = 64;
+    static final int CHAR = 128;
+    static final int CHARS = 256;    
+    static final int BOOLEAN = 512;
+        
     /* Extra types */
     static final int HASH = 10;
+    
+    /* Save Fields */
+    static final int TYPE_FIELD = 1024;
+    static final int ATTR_FIELD = 2048;
+    static final int VALUE_FIELD = 4096;
     
     public RecordsReader(String rec_store){ /* Default Open Store */
         this.REC_STORE = rec_store;        
@@ -320,9 +327,11 @@ public class RecordsReader {
         openRecStore(flag);
                 
         try {
-            RecordEnumeration re = rs.enumerateRecords(filter, null, false);
-            //Reset the filter for future use
+            RecordEnumeration re = rs.enumerateRecords(filter, comp, false);
+            //Reset the filter and comparator for future use
             filter = null;
+            comp = null;
+            
             Vector results = new Vector();
             while(re.hasNextElement()){
                 //Get data into the byte array
@@ -448,9 +457,13 @@ public class RecordsReader {
     }//--End of readRecords()
     
     /* Overload function */
-    public Vector readRecords(String search){
+    public Vector readRecords(String search, Object attrs, int field){
         //Create search filter
+        search = (search != null) ? search : "";    //Guard against null
         filter = new SearchFilter(search);
+        
+        //Create comparator
+        comp = new Comparator(field, attrs);
         
         return readRecords();        
     }//--End of readRecords(String)
@@ -572,8 +585,11 @@ public class RecordsReader {
         return result;
     }//--End of toInt(byte[])
     
-    public static String[] split(String original, String separator)
+    public static String[] split(String original, String separator)            
                 {
+                    if(original.length() < 1)   //Guard against empty strings
+                        return new String[0];
+                    
                     Vector nodes=new Vector();
                     //Parse nodes into Vector
                     int index=original.indexOf(separator);
@@ -656,12 +672,28 @@ class SearchFilter implements RecordFilter{
                 //
                 break;
             }case RecordsReader.STRING: {
-                String str = new String (candidate).toLowerCase();
+            try {                
+                //Read from specified byte array
+                ByteArrayInputStream strmBytes = new ByteArrayInputStream(candidate);
+                
+                //Read Java data types from the above byte array
+                DataInputStream strmDataType = new DataInputStream(strmBytes);
+                
+                //Read back the data
+                int data_type = strmDataType.readInt();
+                strmDataType.readUTF();
+                byte[] data = new byte[strmDataType.available()];
+                strmDataType.readFully(data);
+                String str = new String(data).toLowerCase();
+                
                 //Does the text exist?
-                if(searchText != null && str.indexOf(searchText) != -1)
+                if(searchText != null && str.indexOf(searchText) != -1 && data_type == RecordsReader.STRING)
                     return true;
                 else
                     return false;                
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
             }case RecordsReader.HASH:{
             try {
                 //Read from specified byte array
@@ -711,8 +743,7 @@ class SearchFilter implements RecordFilter{
                     //Read back the data
                     strmDataType.readInt();
                     strmDataType.readUTF();
-                    byte[] data = new byte[strmDataType.available()];
-                    System.out.println(data.length+" vs "+this.searchData.length);
+                    byte[] data = new byte[strmDataType.available()];                    
                     strmDataType.readFully(data);
                     
                     return RecordsReader.equals(data, this.searchData);
@@ -726,4 +757,140 @@ class SearchFilter implements RecordFilter{
         }
         return false;   //Default return for unexpected exit
     }
+}
+
+/* Sorting class by comparing two inputs in lexigraphical order */
+class Comparator implements RecordComparator{
+    private ByteArrayInputStream strmBytes_1 = null;
+    private ByteArrayInputStream strmBytes_2 = null;
+    private DataInputStream strmDataType_1 = null;
+    private DataInputStream strmDataType_2 = null;
+    private int FIELD = -1;
+    private Object comp_obj;
+    
+    public Comparator(int FIELD, Object comp_obj){
+        this.FIELD = FIELD;
+        this.comp_obj = comp_obj;
+    }
+
+    public int compare(byte[] rec1, byte[] rec2) {
+        try{
+            int maxsize = Math.max(rec1.length, rec2.length);
+            byte[] recData = new byte[maxsize];
+            
+            //Read from specified byte array
+            strmBytes_1 = new ByteArrayInputStream(rec1);
+            strmBytes_2 = new ByteArrayInputStream(rec2);
+            
+            //Read Java data types from the above byte array
+            strmDataType_1 = new DataInputStream(strmBytes_1);
+            strmDataType_2 = new DataInputStream(strmBytes_2);
+            
+                        
+            switch(FIELD){
+                case RecordsReader.TYPE_FIELD:{
+                    //Sort according to type
+                    break;
+                }
+                case RecordsReader.ATTR_FIELD:{
+                    /* Sort according to attrs */
+                    strmDataType_1.readInt();
+                    strmDataType_2.readInt();
+                    
+                    //Reconstruct attrs                    
+                    String[] attr_array_1 = RecordsReader.split(strmDataType_1.readUTF(), "|");
+                    String[] attr_array_2 = RecordsReader.split(strmDataType_2.readUTF(), "|");
+                    
+                    Hashtable attr_1 = new Hashtable();
+                    for(int i=0; i<attr_array_1.length; i++){
+                        String[] attr_parts = RecordsReader.split(attr_array_1[i], ":");
+                        attr_1.put(attr_parts[0], attr_parts[1]);
+                    }
+                    
+                    Hashtable attr_2 = new Hashtable();
+                    for(int i=0; i<attr_array_2.length; i++){
+                        String[] attr_parts = RecordsReader.split(attr_array_2[i], ":");
+                        attr_2.put(attr_parts[0], attr_parts[1]);
+                    }
+                    
+                    //Determine type for sorting
+                    if((FIELD & RecordsReader.INT) == 1){
+                        //Compare record #1 and #2
+                        if(attr_1.containsKey(comp_obj) && attr_2.containsKey(comp_obj)){
+                            int x1 = ((Integer)attr_1.get(comp_obj)).intValue();
+                            int x2 = ((Integer)attr_2.get(comp_obj)).intValue();
+                            if(x1==x2)
+                                return RecordComparator.EQUIVALENT;
+                            else if(x1<x2)
+                                return RecordComparator.PRECEDES;
+                            else
+                                return RecordComparator.FOLLOWS;
+                        }
+                    }else{  //Default to String
+                        //Compare record #1 and #2
+                        if(attr_1.containsKey(comp_obj) && attr_2.containsKey(comp_obj)){
+                            String str_1 = (String) attr_1.get(comp_obj);
+                            String str_2 = (String) attr_2.get(comp_obj);
+                            
+                            //Compare record #1 and #2
+                            if(str_1.compareTo(str_2) == 0)
+                                return RecordComparator.EQUIVALENT;
+                            else if(str_1.compareTo(str_2) < 0)
+                                return RecordComparator.PRECEDES;
+                            else return RecordComparator.FOLLOWS;
+                        }
+                    }
+                    
+                    break;
+                } case RecordsReader.VALUE_FIELD:{
+                    /* Sort according to value */
+                    //Read record data type
+                    int type_1 = strmDataType_1.readInt();
+                    int type_2 = strmDataType_2.readInt();
+                                        
+                    switch(type_1 & type_2){
+                        case RecordsReader.INT:{
+                            //Data is integer
+                            strmDataType_1.readUTF();
+                            strmDataType_2.readUTF();
+                            
+                            int x1 = strmDataType_1.readInt();
+                            int x2 = strmDataType_2.readInt();
+                            
+                            //Compare record #1 and #2
+                            if(x1==x2)
+                                return RecordComparator.EQUIVALENT;
+                            else if(x1<x2)
+                                return RecordComparator.PRECEDES;
+                            else
+                                return RecordComparator.FOLLOWS;                            
+                        }
+                        case RecordsReader.STRING:{
+                            //Data is String
+                            strmDataType_1.readUTF();
+                            strmDataType_2.readUTF();
+                            
+                            String str_1 = strmDataType_1.readUTF();
+                            String str_2 = strmDataType_2.readUTF();
+                            
+                            //Compare record #1 and #2
+                            if(str_1.compareTo(str_2) == 0)
+                                return RecordComparator.EQUIVALENT;
+                            else if(str_1.compareTo(str_2) < 0)
+                                return RecordComparator.PRECEDES;
+                            else return RecordComparator.FOLLOWS;
+                           
+                        }
+                        default:
+                            return RecordComparator.EQUIVALENT;                            
+                    }                    
+                }
+                
+            }
+        } catch (IOException ex){
+            //return RecordComparator.EQUIVALENT;
+        }
+        return 0;        
+    }
+    //
 }

@@ -25,28 +25,28 @@ public class Mine extends MIDlet {
     public void startApp() {
         Form f = new Form("Object DB");
         RecordsReader reader = new RecordsReader("mine", true);
+        //reader.deleteRecStore();
         Vector results = null;
         try {
-            Hashtable attr = new Hashtable();            
-            attr.put("developer", "crazywizard");
+            Hashtable attr = new Hashtable();                        
+            attr.put("name", "Caroline");
             //Image img = Image.createImage("/ngugi.png");
             InputStream in = getClass().getResourceAsStream("/ngugi.png");
             byte[] data = new byte[in.available()];
             in.read(data, 0, in.available());
-            //reader.saveRecord(null, "Ngugi");
-            results = reader.readRecords(data);
+            //reader.saveRecord(attr, "Member");            
+            //results = reader.readRecords(data);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
         Hashtable attr = new Hashtable();
         attr.put("developer", "crazywizard");
-        //results = reader.readRecords(attr);
+        results = reader.readRecords(null, "name" , RecordsReader.ATTR_FIELD);
         Enumeration results_enum = results.elements();
         while(results_enum.hasMoreElements()){
             Hashtable result = (Hashtable) results_enum.nextElement();
             System.out.println(result.toString());
         }
-        
         
         Display.getDisplay(this).setCurrent(f);
     }
