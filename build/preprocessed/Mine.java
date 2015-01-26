@@ -41,13 +41,13 @@ public class Mine extends MIDlet {
         }
         Hashtable attr = new Hashtable();
         attr.put("developer", "crazywizard");
-        results = reader.readRecords(null, "name" , RecordsReader.ATTR_FIELD);
+        results = reader.readRecords(null, "name" , RecordsReader.ATTR_FIELD | RecordsReader.INT);
         Enumeration results_enum = results.elements();
         while(results_enum.hasMoreElements()){
             Hashtable result = (Hashtable) results_enum.nextElement();
             System.out.println(result.toString());
         }
-        
+        test();
         Display.getDisplay(this).setCurrent(f);
     }
     
@@ -58,18 +58,8 @@ public class Mine extends MIDlet {
     }
     
     private void test(){
-        try {
-            int i = 65655;
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            DataOutputStream dos = new DataOutputStream(bos);
-            dos.writeInt(i);
-            dos.flush();
-            
-            ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-            DataInputStream dis = new DataInputStream(bis);
-            System.out.println("Result: "+dis.readInt());
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+        String status = null;
+        int status_value = (status==null)?-1:Integer.parseInt(status);
+        System.out.println(status_value);
     }
 }

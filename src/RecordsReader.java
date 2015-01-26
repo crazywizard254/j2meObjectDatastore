@@ -1,4 +1,3 @@
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -99,7 +98,7 @@ public class RecordsReader {
      /*--------------------------------------------------
      * Create arrays to write to record store
      *-------------------------------------------------*/
-    public void saveRecord(Hashtable attr, byte[] data) throws IOException{
+    public int saveRecord(Hashtable attr, byte[] data) throws IOException{
         openRecStore(flag);
         
         //Write data into internal byte array
@@ -111,7 +110,7 @@ public class RecordsReader {
         
         // Check if type isset
         if(type == -1){
-            type = 9;
+            type = BYTE;    //Default to writing pure bytes
         }
         
         /* Decompose hashtable to key/value string pairs */
@@ -123,7 +122,7 @@ public class RecordsReader {
                 String value = attr.get(key).toString();
                 attr_str += "|"+key+":"+value;
             }
-            attr_str = attr_str.substring(1);System.out.println("Attributes: "+attr_str);
+            attr_str = attr_str.substring(1);
         }
         
         //Write Java data types
@@ -136,7 +135,7 @@ public class RecordsReader {
         
         //Get stream data into byte array and write into record
         record = strmBytes.toByteArray();
-        int index;
+        int index = -1;
         try {
             index = rs.addRecord(record, 0, record.length);
         } catch (RecordStoreException ex) {
@@ -153,7 +152,7 @@ public class RecordsReader {
         //Reset type
         type = -1;
         
-        
+        return index;        
     }//--End of saveRecord()
     
     public void saveRecord(int id, Hashtable attr, byte[] data) throws IOException{
@@ -168,7 +167,7 @@ public class RecordsReader {
         
         //check if type isset
         if(type == -1){
-            type = 9;   //default setting
+            type = BYTE;   //default setting
         }
         
         /* Decompose hashtable to key/value string pairs */
@@ -192,8 +191,7 @@ public class RecordsReader {
         strmDataType.flush();
         
         //Get stream data into byte array and write into record
-        record = strmBytes.toByteArray();
-        int index;
+        record = strmBytes.toByteArray();        
         try {
             rs.setRecord(id, record, 0, record.length);
         } catch (InvalidRecordIDException ex) {
@@ -204,99 +202,70 @@ public class RecordsReader {
         
         closeRecStore();
     }
-    
-    public void saveRecord(Hashtable attr, int data) throws IOException{
+
+    /* Overload function -- saveRecord() */
+    public int saveRecord(Hashtable attr, int data) throws IOException{
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         dos.writeInt(data);
         dos.flush();
         
         type = INT;
-        saveRecord(attr, bos.toByteArray());        
+        return saveRecord(attr, bos.toByteArray());        
     }//--End of saveRecord(Hashtable, int)
     
-    public void saveRecord(Hashtable attr, String data) throws IOException {
+    public int saveRecord(Hashtable attr, String data) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         dos.writeUTF(data);
         dos.flush();
         
         type = STRING;        
-        saveRecord(attr, bos.toByteArray());
+        return saveRecord(attr, bos.toByteArray());
     }//--End of saveRecord(Hashtable, String)
     
-    public void updateRecord(int id, Hashtable attr, int data, boolean overwrite) throws IOException{
+    public int saveRecord(Hashtable attr, boolean data) throws IOException{
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        dos.writeBoolean(data);
+        dos.flush();
+        
+        type = BOOLEAN;
+        return saveRecord(attr, bos.toByteArray());
+    }//--End of saveRecord(Hashtable, boolean)
+    
+    public void saveRecord(int id, Hashtable attr, int data) throws IOException{
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         dos.writeInt(data);
         dos.flush();
         
         type = INT;
-        
-        /* First read contents of record */
-        Hashtable result = readRecord(id);
-        
-        //Check for attributes
-        if(result.containsKey("attr") && overwrite==false){
-            Hashtable attribs = (Hashtable) result.get("attr");
-            //(over)write new attributes
-            Enumeration attr_enum = attr.keys();
-            while(attr_enum.hasMoreElements()){
-                String key = attr_enum.nextElement().toString();
-                String value = attr.get(key).toString();
-                attribs.put(key, value);
-            }
-            //Update changes with new byte data
-            saveRecord(id, attribs, bos.toByteArray());
-        }else{
-            //Update record with new byte data
-            saveRecord(id, attr, bos.toByteArray());
-        }
-        
-    }//--End of updateRecord(int, Hashtable, int, boolean)
+        saveRecord(id, attr, bos.toByteArray());
+    }//--End of saveRecord(int, Hashtable, int)
     
-    /* Overload function */
-    public void updateRecord(int id, Hashtable attr, int data) throws IOException{
-        updateRecord(id, attr, data, false);
-    }//--End of update
-    
-    public void updateRecords(int id, Hashtable attr, String data, boolean overwrite) throws IOException{
+    public void saveRecord(int id, Hashtable attr, String data) throws IOException{
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         dos.writeUTF(data);
         dos.flush();
         
         type = STRING;
-        
-        /* First read contents of record */
-        Hashtable result = new Hashtable();
-        
-        //Check for attributes
-        if(result.containsKey("attr") && overwrite==false){
-            Hashtable attribs = (Hashtable) result.get("attr");
-            //(over)write new attributes
-            Enumeration attr_enum = attr.keys();
-            while(attr_enum.hasMoreElements()){
-                String key = attr_enum.nextElement().toString();
-                String value = attr.get(key).toString();
-                attribs.put(key, value);
-            }
-            //Update changes with new byte data
-            saveRecord(id, attribs, bos.toByteArray());
-        }else{
-            //Update record with new byte data
-            saveRecord(id, attr, bos.toByteArray());
-        }
-    }//--End of updateRecords(int, Hashtable, String, boolean)
+        saveRecord(id, attr, bos.toByteArray());
+    }//--End of saveRecord(int, Hashtable, String)
     
-    /* Overload function */
-    public void updateRecords(int id, Hashtable attr, String data) throws IOException{
-        updateRecords(id, attr, data, false);
-    }//--End of updateRecords(int, Hashtable, String)
-    
+    public void saveRecord(int id, Hashtable attr, boolean data) throws IOException{
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        dos.writeBoolean(data);
+        dos.flush();
+        
+        type = BOOLEAN;
+        saveRecord(id, attr, bos.toByteArray());
+    }//--End of saveRecord(int, Hashtable, boolean)
+        
+    /* Overload function -- updateRecord()*/
     public void updateRecord(int id, Hashtable attr, byte[] data, boolean overwrite) throws IOException{
-        type = INT;
-        
         /* First read contents of record */
         Hashtable result = readRecord(id);
         
@@ -318,10 +287,38 @@ public class RecordsReader {
         }
     }//--End of updateRecord(int, Hashtable, byte[], boolea)
     
-    public void updateRecord(int id, Hashtable attr, byte[] data) throws IOException{
-        updateRecord(id, attr, data, false);
-    }//--End of updateRecord(int, Hashtable, byte[])
+    public void updateRecord(int id, Hashtable attr, String data, boolean overwrite) throws IOException{
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        dos.writeUTF(data);
+        dos.flush();
+        
+        type = STRING;
+        
+        updateRecord(id, attr, bos.toByteArray(), overwrite);
+    }//--End of updateRecord(int, Hashtable, String, boolean)
     
+    public void updateRecord(int id, Hashtable attr, int data, boolean overwrite) throws IOException{
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        dos.writeInt(data);
+        dos.flush();
+        
+        type = INT;
+        
+        updateRecord(id, attr, bos.toByteArray(), overwrite);
+    }//--End of updateRecord(int, Hashtable, int, boolean)
+    
+    public void updateRecord(int id, Hashtable attr, boolean data, boolean overwrite) throws IOException{
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        dos.writeBoolean(data);
+        dos.flush();
+        
+        type = BOOLEAN;
+        
+        updateRecord(id, attr, bos.toByteArray(), overwrite);
+    }//--End of updateRecord(int, Hashtable, boolean, boolean)
     
     public Vector readRecords(){
         openRecStore(flag);
@@ -432,9 +429,36 @@ public class RecordsReader {
                         results.addElement(result);
                         
                         break;
+                    }case BOOLEAN:{
+                        //Create holding hashtable
+                        Hashtable result = new Hashtable();
+                        
+                        String attr_str = strmDataType.readUTF();
+                        if(attr_str.length() > 1){
+                            //Reconstruct attrs
+                            String[] attr_array = split(attr_str, "|");
+                            Hashtable attr = new Hashtable();
+                            for(int i=0; i<attr_array.length; i++){
+                                String[] attr_parts = split(attr_array[i], ":");
+                                attr.put(attr_parts[0], attr_parts[1]);
+                            }
+                            //Add to result
+                            result.put("attr", attr);
+                        }
+                        
+                        //Extract Value
+                        Boolean value = new Boolean(strmDataType.readBoolean());
+                        
+                        //Pack singular result
+                        result.put("value", value);
+                        result.put("id", new Integer(next));
+                        
+                        results.addElement(result);
+                        
+                        break;
                     }
                     default:
-                        //Do nothing?
+                        System.out.println("No type detected!!"); //Do nothing?
                         break;
                 }
                 
@@ -529,7 +553,31 @@ public class RecordsReader {
                     closeRecStore();
                     return result;                    
                 }case STRING:{
-                    //
+                    //Create holding hashtable
+                    Hashtable result = new Hashtable();
+                    
+                    String attr_str = strmDataType.readUTF();
+                    if(attr_str.length() > 1){
+                        //Reconstruct attrs
+                        String[] attr_array = split(attr_str, "|");
+                        Hashtable attr = new Hashtable();
+                        for(int i=0; i<attr_array.length; i++){
+                            String[] attr_parts = split(attr_array[i], ":");
+                            attr.put(attr_parts[0], attr_parts[1]);
+                        }
+                        //Add to result
+                        result.put("attr", attr);
+                    }
+                    
+                    //Extract Value
+                    String value = strmDataType.readUTF();
+                    
+                    //Pack into singular result
+                    result.put("value", value);
+                    result.put("id", new Integer(id));
+                    
+                    closeRecStore();
+                    return result;
                 }case BYTE:{
                     //Create holding hashtable
                     Hashtable result = new Hashtable();
@@ -555,6 +603,30 @@ public class RecordsReader {
                     
                     closeRecStore();
                     return result;
+                }case BOOLEAN:{
+                    //Create holding hashtable
+                    Hashtable result = new Hashtable();
+                    
+                    String attr_str = strmDataType.readUTF();
+                    if(attr_str.length() > 1){
+                        //Reconstruct attrs
+                        String[] attr_array = split(attr_str, "|");
+                        Hashtable attr = new Hashtable();
+                        for(int i=0; i<attr_array.length; i++){
+                            String[] attr_parts = split(attr_array[i], ":");
+                            attr.put(attr_parts[0], attr_parts[1]);
+                        }
+                        //Add to result
+                        result.put("attr", attr);
+                    }
+                    
+                    //Extract Value
+                    Boolean value = new Boolean(strmDataType.readBoolean());
+                    result.put("value", value);
+                    result.put("id", new Integer(id));
+                    
+                    closeRecStore();
+                    return result;
                 }
                 default:
                     closeRecStore();
@@ -575,16 +647,34 @@ public class RecordsReader {
         return null;
     }//--End of readRecord(int)
     
-    /* Helper Methods */
-    public static int toInt(byte[] bytes){
-        int result = 0;
-        for(int i=0; i<4; i++){
-            result = (result << 8) - Byte.MIN_VALUE + (int)bytes[i];
+    public void deleteRecord(int id){
+        openRecStore(flag);
+        try {
+            rs.deleteRecord(id);
+        } catch (InvalidRecordIDException ex) {
+            ex.printStackTrace();
+        } catch (RecordStoreException ex) {
+            ex.printStackTrace();
         }
-        
-        return result;
-    }//--End of toInt(byte[])
+        closeRecStore();
+    }//--End of deleteRecord(int)
     
+    public int numRecords(){
+        openRecStore(flag);
+        try {
+            return rs.getNumRecords();
+        } catch (RecordStoreNotOpenException ex) {
+            ex.printStackTrace();
+        }
+        closeRecStore();
+        return 0;
+    }//--End of numRecords()
+    
+    public String[] listRecStores(){
+        return RecordStore.listRecordStores();
+    }//--End of listRecStores()
+    
+    /* Helper Methods */
     public static String[] split(String original, String separator)            
                 {
                     if(original.length() < 1)   //Guard against empty strings
