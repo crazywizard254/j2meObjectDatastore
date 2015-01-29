@@ -73,11 +73,11 @@ public class RecordsReader {
         }
     }//--End of openRecStore(boolean)
     
-    public void closeRecStore(){        
+    public void closeRecStore(){
         try{
             rs.closeRecordStore();
         }catch(NullPointerException ex){
-            System.out.println("RecordStore NOT open.");
+            System.out.println("RecordStore NOT open.");            
         }catch (Exception ex){
             ex.printStackTrace();
         }
@@ -458,7 +458,7 @@ public class RecordsReader {
                         break;
                     }
                     default:
-                        System.out.println("No type detected!!"); //Do nothing?
+                        //Do nothing?
                         break;
                 }
                 
@@ -482,7 +482,11 @@ public class RecordsReader {
     
     /* Overload function */
     public Vector readRecords(String search, Object attrs, int field){
-        //Create search filter
+        /* field comprises a bitwise OR of two options for sorting
+        * 1. One of the 3 fields in the saved data structure to sort(i.e TYPE_FIELD, ATTR_FIELD or VALUE_FIELD)
+        * 2. The expected type of data ONLY applies to ATTR_FIELD(i.t BYTE, STRING, INT etc)
+        */
+        //Create search filter -- Gueard against null        
         search = (search != null) ? search : "";    //Guard against null
         filter = new SearchFilter(search);
         
@@ -492,9 +496,13 @@ public class RecordsReader {
         return readRecords();        
     }//--End of readRecords(String)
     
-    public Vector readRecords(Hashtable search){
+    public Vector readRecords(Hashtable search, Object attrs, int field){
         //Create search filter
+        search = (search != null) ? search : null;    //Guard against null
         filter = new SearchFilter(search);
+        
+        //Create comparator
+        comp = new Comparator(field, attrs);
         
         return readRecords();
     }//--End of readRecords(Hashtable)
@@ -635,7 +643,7 @@ public class RecordsReader {
             
         } catch (RecordStoreNotOpenException ex) {
             ex.printStackTrace();
-        } catch (InvalidRecordIDException ex) {System.out.println("That record doesn't exist..");
+        } catch (InvalidRecordIDException ex) {// Record doesn't exist
             ex.printStackTrace();
         } catch (RecordStoreException ex) {
             ex.printStackTrace();
@@ -661,8 +669,10 @@ public class RecordsReader {
     
     public int numRecords(){
         openRecStore(flag);
-        try {
-            return rs.getNumRecords();
+        try {            
+            int num = rs.getNumRecords();
+            closeRecStore();
+            return num;
         } catch (RecordStoreNotOpenException ex) {
             ex.printStackTrace();
         }
@@ -809,7 +819,7 @@ class SearchFilter implements RecordFilter{
                     Enumeration search_keys = this.searchHash.keys();
                     while(search_keys.hasMoreElements()){
                         Object key = search_keys.nextElement();     //Maintain type                        
-                        if(attr.containsKey(key) && attr.contains(this.searchHash.get(key))){System.out.println("Match Found");
+                        if(attr.containsKey(key) && attr.contains(this.searchHash.get(key))){
                             return true;
                         }
                     }
@@ -876,13 +886,11 @@ class Comparator implements RecordComparator{
             strmDataType_1 = new DataInputStream(strmBytes_1);
             strmDataType_2 = new DataInputStream(strmBytes_2);
             
-                        
             switch(FIELD){
                 case RecordsReader.TYPE_FIELD:{
                     //Sort according to type
                     break;
-                }
-                case RecordsReader.ATTR_FIELD:{
+                }case RecordsReader.ATTR_FIELD | RecordsReader.INT:{
                     /* Sort according to attrs */
                     strmDataType_1.readInt();
                     strmDataType_2.readInt();
@@ -902,13 +910,10 @@ class Comparator implements RecordComparator{
                         String[] attr_parts = RecordsReader.split(attr_array_2[i], ":");
                         attr_2.put(attr_parts[0], attr_parts[1]);
                     }
-                    
-                    //Determine type for sorting
-                    if((FIELD & RecordsReader.INT) == 1){
-                        //Compare record #1 and #2
-                        if(attr_1.containsKey(comp_obj) && attr_2.containsKey(comp_obj)){
-                            int x1 = ((Integer)attr_1.get(comp_obj)).intValue();
-                            int x2 = ((Integer)attr_2.get(comp_obj)).intValue();
+                    //Compare record #1 and #2
+                        if(attr_1.containsKey(comp_obj) && attr_2.containsKey(comp_obj)){                            
+                            int x1 = Integer.parseInt(attr_1.get(comp_obj).toString());
+                            int x2 = Integer.parseInt(attr_2.get(comp_obj).toString());                            
                             if(x1==x2)
                                 return RecordComparator.EQUIVALENT;
                             else if(x1<x2)
@@ -916,8 +921,27 @@ class Comparator implements RecordComparator{
                             else
                                 return RecordComparator.FOLLOWS;
                         }
-                    }else{  //Default to String
-                        //Compare record #1 and #2
+                }case RecordsReader.ATTR_FIELD | RecordsReader.STRING:{
+                    /* Sort according to attrs */
+                    strmDataType_1.readInt();
+                    strmDataType_2.readInt();
+                    
+                    //Reconstruct attrs                    
+                    String[] attr_array_1 = RecordsReader.split(strmDataType_1.readUTF(), "|");
+                    String[] attr_array_2 = RecordsReader.split(strmDataType_2.readUTF(), "|");
+                    
+                    Hashtable attr_1 = new Hashtable();
+                    for(int i=0; i<attr_array_1.length; i++){
+                        String[] attr_parts = RecordsReader.split(attr_array_1[i], ":");
+                        attr_1.put(attr_parts[0], attr_parts[1]);
+                    }
+                    
+                    Hashtable attr_2 = new Hashtable();
+                    for(int i=0; i<attr_array_2.length; i++){
+                        String[] attr_parts = RecordsReader.split(attr_array_2[i], ":");
+                        attr_2.put(attr_parts[0], attr_parts[1]);
+                    }
+                    //Compare record #1 and #2
                         if(attr_1.containsKey(comp_obj) && attr_2.containsKey(comp_obj)){
                             String str_1 = (String) attr_1.get(comp_obj);
                             String str_2 = (String) attr_2.get(comp_obj);
@@ -929,10 +953,7 @@ class Comparator implements RecordComparator{
                                 return RecordComparator.PRECEDES;
                             else return RecordComparator.FOLLOWS;
                         }
-                    }
-                    
-                    break;
-                } case RecordsReader.VALUE_FIELD:{
+                }case RecordsReader.VALUE_FIELD:{
                     /* Sort according to value */
                     //Read record data type
                     int type_1 = strmDataType_1.readInt();
@@ -978,9 +999,9 @@ class Comparator implements RecordComparator{
                 
             }
         } catch (IOException ex){
-            //return RecordComparator.EQUIVALENT;
+            return RecordComparator.EQUIVALENT;
         }
-        return 0;        
+        return RecordComparator.EQUIVALENT;
     }
     //
 }
